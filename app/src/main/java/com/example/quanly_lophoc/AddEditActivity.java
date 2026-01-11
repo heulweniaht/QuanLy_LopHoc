@@ -1,6 +1,7 @@
 package com.example.quanly_lophoc;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -95,75 +96,89 @@ public class AddEditActivity extends AppCompatActivity {
             Toast.makeText(this, "Vui lòng nhập mã lớp", Toast.LENGTH_SHORT).show();
             return;
         }
-        Lop lop = new Lop();
-        lop.setMaLop(edtMaLop.getText().toString());
-        lop.setTenLop(edtTenLop.getText().toString());
-        lop.setNienKhoa(edtNienKhoa.getText().toString());
 
+        // 1. Tạo đối tượng Lop mới để gửi đi
+        Lop lopToSend = new Lop();
+
+        // 2. Chỉ set những trường thuộc bảng LOP
+        lopToSend.setMaLop(edtMaLop.getText().toString());
+        lopToSend.setTenLop(edtTenLop.getText().toString());
+        lopToSend.setNienKhoa(edtNienKhoa.getText().toString());
+
+        // 3. Lấy MaNganh từ Spinner
         Nganh selectedNganh = (Nganh) spnNganh.getSelectedItem();
         if (selectedNganh != null) {
-            // 1. Gửi Mã Ngành
-            lop.setMaNganh(selectedNganh.getMaNganh());
+            // 1. Set Mã Ngành
+            lopToSend.setMaNganh(selectedNganh.getMaNganh());
 
-            // 2. Gửi Tên Ngành (Server bắt buộc)
-            lop.setTenNganh(selectedNganh.getTenNganh());
+            // 2. Set Tên Ngành (BẮT BUỘC - theo log lỗi)
+            // Lấy từ đối tượng Ngành đã chọn trong Spinner
+            lopToSend.setTenNganh(selectedNganh.getTenNganh());
 
-            // 3. Gửi Tên Khoa (Server bắt buộc)
-            // Nếu API Nganh có trả về tenKhoa thì lấy từ đó
-            if (selectedNganh.getTenKhoa() != null) {
-                lop.setTenKhoa(selectedNganh.getTenKhoa());
+            // 3. Set Tên Khoa (BẮT BUỘC - theo log lỗi)
+            if (selectedNganh.getTenKhoa() != null && !selectedNganh.getTenKhoa().isEmpty()) {
+                lopToSend.setTenKhoa(selectedNganh.getTenKhoa());
             } else {
-                // Nếu API Nganh không có tenKhoa, ta phải "chống cháy" bằng cách gửi chuỗi mặc định
-                // để Server không báo lỗi. Bạn có thể sửa chuỗi này sau.
-                lop.setTenKhoa("Công nghệ thông tin");
+                // Nếu API lấy danh sách Ngành không trả về Tên Khoa,
+                // ta buộc phải gửi một chuỗi mặc định để vượt qua validation "Required" của Server.
+                lopToSend.setTenKhoa("Công nghệ thông tin");
             }
         }
 
         if (lopHienTai == null) {
-            // == THÊM MỚI (CREATE) ==
-            ApiClient.getService().createLop(lop).enqueue(new Callback<Void>() {
+            // == THÊM MỚI (POST) ==
+            // Dùng lopToSend thay vì lop cũ
+            Log.d("DEBUG_DATA", "MaNganh: " + lopToSend.getMaNganh());
+            Log.d("DEBUG_DATA", "TenNganh: " + lopToSend.getTenNganh());
+            Log.d("DEBUG_DATA", "TenKhoa: " + lopToSend.getTenKhoa());
+            ApiClient.getService().createLop(lopToSend).enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
                     if (response.isSuccessful()) {
                         Toast.makeText(AddEditActivity.this, "Thêm thành công!", Toast.LENGTH_SHORT).show();
                         finish();
                     } else {
-                        // QUAN TRỌNG: In lỗi ra Logcat để xem
-                        int statusCode = response.code();
-                        String errorBody = "";
+                        // In lỗi chi tiết ra để debug nếu vẫn lỗi
                         try {
-                            if (response.errorBody() != null) {
-                                errorBody = response.errorBody().string();
-                            }
-                        } catch (Exception e) { e.printStackTrace(); }
+                            String errorBody = response.errorBody().string(); // Đọc nội dung lỗi
+                            Log.e("LOI_API", "Code: " + response.code() + " - Body: " + errorBody);
 
-                        // Hiển thị lỗi lên màn hình để bạn dễ thấy
-                        Toast.makeText(AddEditActivity.this, "Lỗi Server: " + statusCode, Toast.LENGTH_LONG).show();
-
-                        // Ghi log chi tiết
-                        android.util.Log.e("LOI_THEM_MOI", "Code: " + statusCode + " - Body: " + errorBody);
-                    }
+                            // Hiện lỗi lên Toast để dễ nhìn
+                            Toast.makeText(AddEditActivity.this, "Lỗi: " + errorBody, Toast.LENGTH_LONG).show();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }                    }
                 }
-
                 @Override
                 public void onFailure(Call<Void> call, Throwable t) {
-                    Toast.makeText(AddEditActivity.this, "Lỗi kết nối: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                    android.util.Log.e("LOI_THEM_MOI", "Lỗi: " + t.getMessage());
+                    Toast.makeText(AddEditActivity.this, "Lỗi kết nối", Toast.LENGTH_SHORT).show();
                 }
             });
-        }else{
-            //Cập nhật
-            ApiClient.getService().updateLop(lop).enqueue(new Callback<Void>() {
+        } else {
+            // == CẬP NHẬT (PUT) ==
+            // Quan trọng: Tham số đầu tiên phải là Mã Lớp gốc (để điền vào link /api/Lop/{id})
+            // Tham số thứ 2 là body (lopToSend) chứa dữ liệu cần sửa
+            Log.d("DEBUG_DATA", "MaNganh: " + lopToSend.getMaNganh());
+            Log.d("DEBUG_DATA", "TenNganh: " + lopToSend.getTenNganh());
+            Log.d("DEBUG_DATA", "TenKhoa: " + lopToSend.getTenKhoa());
+            // Lưu ý: lopHienTai.getMaLop() là ID lấy từ Intent ban đầu (ID đúng)
+            ApiClient.getService().updateLop(lopHienTai.getMaLop(), lopToSend).enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
-                    if(response.isSuccessful()){
+                    if (response.isSuccessful()) {
                         Toast.makeText(AddEditActivity.this, "Cập nhật thành công", Toast.LENGTH_SHORT).show();
                         finish();
-                    }else{
-                        Toast.makeText(AddEditActivity.this, "Cập nhật thất bại", Toast.LENGTH_SHORT).show();
-                    }
-                }
+                    } else {
+                        try {
+                            String errorBody = response.errorBody().string(); // Đọc nội dung lỗi
+                            Log.e("LOI_API", "Code: " + response.code() + " - Body: " + errorBody);
 
+                            // Hiện lỗi lên Toast để dễ nhìn
+                            Toast.makeText(AddEditActivity.this, "Lỗi: " + errorBody, Toast.LENGTH_LONG).show();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }                    }
+                }
                 @Override
                 public void onFailure(Call<Void> call, Throwable t) {
                     Toast.makeText(AddEditActivity.this, "Lỗi kết nối", Toast.LENGTH_SHORT).show();

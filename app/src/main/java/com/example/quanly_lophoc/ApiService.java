@@ -18,8 +18,8 @@ public interface ApiService {
     Call<List<Nganh>> getAllNganh();
     @POST("api/Lop")
     Call<Void> createLop(@Body Lop lop);
-    @PUT("api/Lop")
-    Call<Void> updateLop(@Body Lop lop);
+    @PUT("api/Lop/{id}")
+    Call<Void> updateLop(@Path("id") String maLop, @Body Lop lop);
     @DELETE("api/Lop/{id}")
     Call<Void> deleteLop(@Path("id") String maLop);
 }
