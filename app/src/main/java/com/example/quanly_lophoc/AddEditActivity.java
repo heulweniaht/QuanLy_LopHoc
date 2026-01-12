@@ -2,6 +2,7 @@ package com.example.quanly_lophoc;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -10,6 +11,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -33,7 +35,7 @@ import retrofit2.Response;
 public class AddEditActivity extends AppCompatActivity {
     EditText edtMaLop, edtTenLop, edtNienKhoa;
     Spinner spnNganh;
-    Button btnLuu, btnHuy;
+    Button btnLuu, btnHuy, btnXoa;
     TextView tvTitle;
     List<Nganh> listNganh = new ArrayList<>();
     Lop lopHienTai = null;
@@ -47,6 +49,7 @@ public class AddEditActivity extends AppCompatActivity {
         spnNganh = findViewById(R.id.spnNganh);
         btnLuu = findViewById(R.id.btnLuu);
         btnHuy = findViewById(R.id.btnHuy);
+        btnXoa = findViewById(R.id.btnXoa);
         tvTitle = findViewById(R.id.tvTitle);
         //Lấy dữ liệu intent
         if(getIntent().getExtras() != null){
@@ -58,6 +61,7 @@ public class AddEditActivity extends AppCompatActivity {
         btnHuy.setOnClickListener(v -> finish());
         
         btnLuu.setOnClickListener(v -> handleSave());
+        btnXoa.setOnClickListener(v -> showDeleteConfirmation());
     }
     
     private void loadDataSpinner() {
@@ -89,7 +93,7 @@ public class AddEditActivity extends AppCompatActivity {
 
         edtTenLop.setText(lopHienTai.getTenLop());
         edtNienKhoa.setText(lopHienTai.getNienKhoa());
-
+        btnXoa.setVisibility(View.VISIBLE);
         //tìm chọn đúng ngành trong spinner
         for(int i = 0; i<listNganh.size();i++) {
             if (listNganh.get(i).getMaNganh().equals(lopHienTai.getMaNganh())) {
@@ -98,7 +102,39 @@ public class AddEditActivity extends AppCompatActivity {
             }
         }
     }
+    private void showDeleteConfirmation() {
+        new AlertDialog.Builder(this)
+                .setTitle("Xác nhận xóa")
+                .setMessage("Bạn có chắc muốn xóa lớp " + lopHienTai.getTenLop() + " không?")
+                .setPositiveButton("Có, Xóa", (dialog, which) -> {
+                    // Người dùng chọn OK -> Gọi API
+                    requestDeleteApi();
+                })
+                .setNegativeButton("Không", null)
+                .show();
+    }
 
+    // 5. Hàm gọi API xóa
+    private void requestDeleteApi() {
+        if (lopHienTai == null) return;
+
+        ApiClient.getService().deleteLop(lopHienTai.getMaLop()).enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(AddEditActivity.this, "Đã xóa thành công!", Toast.LENGTH_SHORT).show();
+                    finish(); // Đóng màn hình này để quay về danh sách
+                } else {
+                    Toast.makeText(AddEditActivity.this, "Xóa thất bại!", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                Toast.makeText(AddEditActivity.this, "Lỗi kết nối: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
     private void handleSave() {
         if(edtMaLop.getText().toString().isEmpty()){
             Toast.makeText(this, "Vui lòng nhập mã lớp", Toast.LENGTH_SHORT).show();

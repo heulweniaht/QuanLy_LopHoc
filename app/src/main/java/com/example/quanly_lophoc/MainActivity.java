@@ -1,6 +1,7 @@
 package com.example.quanly_lophoc;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.util.Log;
@@ -21,7 +22,7 @@ public class MainActivity extends AppCompatActivity {
     RecyclerView rcvLop;
     FloatingActionButton fabAdd;
     LopAdapter adapter;
-
+    boolean isAdmin = false;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -31,7 +32,13 @@ public class MainActivity extends AppCompatActivity {
         fabAdd = findViewById(R.id.fabAdd);
 
         rcvLop.setLayoutManager(new LinearLayoutManager(this));
+        SharedPreferences pref = getSharedPreferences("UserPrefs", MODE_PRIVATE);
+        isAdmin = pref.getBoolean("IS_ADMIN", false);
 
+        // NẾU KHÔNG PHẢI ADMIN THÌ ẨN NÚT THÊM
+        if (!isAdmin) {
+            fabAdd.setVisibility(View.GONE);
+        }
         // Sự kiện click nút Thêm (+)
         fabAdd.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, AddEditActivity.class);
@@ -52,25 +59,28 @@ public class MainActivity extends AppCompatActivity {
             public void onResponse(Call<List<Lop>> call, Response<List<Lop>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     List<Lop> list = response.body();
-                    Log.d("API", "Số lượng lớp = " + list.size());
-
                     adapter = new LopAdapter(MainActivity.this, list, new LopAdapter.IClickListener() {
                         @Override
                         public void onClickUpdate(Lop lop) {
-                            // Chuyển sang màn hình Edit và gửi object đi
-                            Intent intent = new Intent(MainActivity.this, AddEditActivity.class);
-                            intent.putExtra("object_lop", lop);
-                            startActivity(intent);
+                            if (isAdmin) {
+                                Intent intent = new Intent(MainActivity.this, AddEditActivity.class);
+                                intent.putExtra("object_lop", lop);
+                                startActivity(intent);
+                            } else {
+                                Toast.makeText(MainActivity.this, "Bạn không có quyền sửa!", Toast.LENGTH_SHORT).show();
+                            }
                         }
 
                         @Override
                         public void onLongClickDelete(Lop lop) {
-                            showDeleteConfirmation(lop);
+                            if (isAdmin) {
+                                showDeleteConfirmation(lop);
+                            } else {
+                                Toast.makeText(MainActivity.this, "Bạn không có quyền xóa!", Toast.LENGTH_SHORT).show();
+                            }
                         }
                     });
                     rcvLop.setAdapter(adapter);
-                }else{
-                    Log.d("API_LOP", "Response null hoặc không thành công");
                 }
             }
 
